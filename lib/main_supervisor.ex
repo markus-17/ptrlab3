@@ -7,7 +7,10 @@ defmodule MainSupervisor do
 
   @impl true
   def init(_init_arg) do
-    children = []
+    children = [
+      {Task.Supervisor, name: ProducerConnectionTaskSupervisor},
+      {ProducerConnectionAccepter, 8080}
+    ]
 
     Supervisor.init(children, strategy: :rest_for_one)
   end
