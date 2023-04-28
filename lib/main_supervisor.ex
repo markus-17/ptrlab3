@@ -8,6 +8,7 @@ defmodule MainSupervisor do
   @impl true
   def init(_init_arg) do
     children = [
+      {QueueSupervisor, :ok},
       {Task.Supervisor, name: ConsumerConnectionTaskSupervisor},
       {ConsumerConnectionAccepter, 8081},
       {Task.Supervisor, name: ProducerConnectionTaskSupervisor},
