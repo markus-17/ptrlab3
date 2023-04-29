@@ -23,6 +23,7 @@ defmodule ConsumerConnectionHandler do
     case string do
       ["user", user_name] -> handle_user_command(socket, state, user_name)
       ["subscribe", topic] -> handle_subscribe_command(socket, state, topic)
+      ["get-topics"] -> handle_get_topics_command(socket, state)
       ["unsubscribe", topic] -> handle_unsubscribe_command(socket, state, topic)
       _ -> handle_unknown_command(socket, state)
     end
@@ -56,7 +57,31 @@ defmodule ConsumerConnectionHandler do
   end
 
   defp handle_subscribe_command(socket, state, topic) do
-    :gen_tcp.send(socket, "\r\nSubscribed to topic #{topic}")
+    case state.current_user do
+      nil ->
+        :gen_tcp.send(socket, "\r\nYou have to act as a user before subscribing to topics")
+
+      user_name ->
+        Queue.get_name(user_name) |> Queue.subscribe(topic)
+        :gen_tcp.send(socket, "\r\nSubscribed to topic #{topic}")
+    end
+
+    state
+  end
+
+  defp handle_get_topics_command(socket, state) do
+    case state.current_user do
+      nil ->
+        :gen_tcp.send(socket, "\r\nYou have to act as a user before viewing subscribed topics")
+
+      user_name ->
+        topics =
+          Queue.get_name(user_name)
+          |> Queue.get_topics()
+
+        :gen_tcp.send(socket, "\r\n#{inspect(topics)}")
+    end
+
     state
   end
 
