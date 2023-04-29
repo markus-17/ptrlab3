@@ -86,7 +86,15 @@ defmodule ConsumerConnectionHandler do
   end
 
   defp handle_unsubscribe_command(socket, state, topic) do
-    :gen_tcp.send(socket, "\r\nUnsubscribed from topic #{topic}")
+    case state.current_user do
+      nil ->
+        :gen_tcp.send(socket, "\r\nYou have to act as a user before unsubscribing from topics")
+
+      user_name ->
+        Queue.get_name(user_name) |> Queue.unsubscribe(topic)
+        :gen_tcp.send(socket, "\r\nUnsubscribed from topic #{topic}")
+    end
+
     state
   end
 

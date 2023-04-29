@@ -28,12 +28,22 @@ defmodule Queue do
     {:reply, state.topics |> Enum.to_list(), state}
   end
 
+  @impl true
+  def handle_call({:unsubscribe, topic}, _from, state) do
+    new_topics = state.topics |> MapSet.delete(topic)
+    {:reply, :ok, state |> Map.put(:topics, new_topics)}
+  end
+
   def subscribe(server, topic) do
     :ok = GenServer.call(server, {:subscribe, topic})
   end
 
   def get_topics(server) do
     GenServer.call(server, {:get_topics})
+  end
+
+  def unsubscribe(server, topic) do
+    :ok = GenServer.call(server, {:unsubscribe, topic})
   end
 
   def get_name(user_name) do
