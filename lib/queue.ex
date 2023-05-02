@@ -14,7 +14,7 @@ defmodule Queue do
 
   @impl true
   def init(user_name) do
-    {:ok, %{user_name: user_name, topics: MapSet.new()}}
+    {:ok, %{user_name: user_name, topics: MapSet.new(), sockets: []}}
   end
 
   @impl true
@@ -34,6 +34,35 @@ defmodule Queue do
     {:reply, :ok, state |> Map.put(:topics, new_topics)}
   end
 
+  @impl true
+  def handle_call({:add_socket, socket}, _from, state) do
+    sockets = state.sockets ++ [socket]
+    {:reply, :ok, state |> Map.put(:sockets, sockets)}
+  end
+
+  @impl true
+  def handle_cast({:message, {topic, message}}, state) do
+    case state.topics |> Enum.member?(topic) do
+      true ->
+        sockets =
+          state.sockets
+          |> Enum.reduce([], fn socket, acc ->
+            list =
+              case :gen_tcp.send(socket, "\r\n#{message}") do
+                :ok -> [socket]
+                {:error, _} -> []
+              end
+
+            acc ++ list
+          end)
+
+        {:noreply, state |> Map.put(:sockets, sockets)}
+
+      false ->
+        {:noreply, state}
+    end
+  end
+
   def subscribe(server, topic) do
     :ok = GenServer.call(server, {:subscribe, topic})
   end
@@ -44,6 +73,14 @@ defmodule Queue do
 
   def unsubscribe(server, topic) do
     :ok = GenServer.call(server, {:unsubscribe, topic})
+  end
+
+  def add_socket(server, socket) do
+    :ok = GenServer.call(server, {:add_socket, socket})
+  end
+
+  def send_message(server, topic, message) do
+    GenServer.cast(server, {:message, {topic, message}})
   end
 
   def get_name(user_name) do

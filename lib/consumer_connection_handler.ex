@@ -32,7 +32,7 @@ defmodule ConsumerConnectionHandler do
   defp handle_user_command(socket, state, user_name) do
     case state.current_user do
       nil ->
-        put_queue(user_name)
+        put_queue(user_name, socket)
         :gen_tcp.send(socket, "\r\nUser was set to #{user_name}")
         state |> Map.put(:current_user, user_name)
 
@@ -46,7 +46,7 @@ defmodule ConsumerConnectionHandler do
     end
   end
 
-  defp put_queue(user_name) do
+  defp put_queue(user_name, socket) do
     case Supervisor.start_child(QueueSupervisor, Queue.child_spec(user_name)) do
       {:ok, _pid} ->
         Logger.info("Queue for user #{user_name} has been created")
@@ -54,6 +54,7 @@ defmodule ConsumerConnectionHandler do
       {:error, {:already_started, _pid}} ->
         Logger.info("Queue for user #{user_name} already exists, it is going to be reused")
     end
+    Queue.get_name(user_name) |> Queue.add_socket(socket)
   end
 
   defp handle_subscribe_command(socket, state, topic) do
