@@ -8,6 +8,7 @@ defmodule MainSupervisor do
   @impl true
   def init(_init_arg) do
     children = [
+      {DeadLetterChannel, :ok},
       {QueueSupervisor, :ok},
       {Task.Supervisor, name: ConsumerConnectionTaskSupervisor},
       {ConsumerConnectionAccepter, 8081},

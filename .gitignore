@@ -24,3 +24,5 @@ ptrlab3-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+Elixir.DeadLetterChannel.json

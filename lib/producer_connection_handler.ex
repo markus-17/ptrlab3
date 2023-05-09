@@ -14,23 +14,17 @@ defmodule ProducerConnectionHandler do
   end
 
   defp handle_message(data) do
-    [topic, message] =
-      data
-      |> String.trim()
-      |> String.split("@")
+    case Poison.Parser.parse!(data, %{}) do
+      %{"topic" => topic, "message" => message} when topic != "" and message != "" ->
+        Supervisor.which_children(QueueSupervisor)
+        |> Enum.map(fn {_, pid, _, _} ->
+          Queue.send_message(pid, topic, message)
+        end)
+        Logger.info("#{__MODULE__} ---data---> Queues")
 
-    topic =
-      topic
-      |> String.trim()
-      |> String.downcase()
-
-    message =
-      message
-      |> String.trim()
-
-    Supervisor.which_children(QueueSupervisor)
-    |> Enum.map(fn {_, pid, _, _} ->
-      Queue.send_message(pid, topic, message)
-    end)
+      _ ->
+        DeadLetterChannel.send_message(data)
+        Logger.info("#{__MODULE__} ---data---> #{DeadLetterChannel}")
+    end
   end
 end
