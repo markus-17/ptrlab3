@@ -26,3 +26,4 @@ ptrlab3-*.tar
 /tmp/
 
 Elixir.DeadLetterChannel.json
+Elixir.Queue*.bin

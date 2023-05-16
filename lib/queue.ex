@@ -14,11 +14,13 @@ defmodule Queue do
 
   @impl true
   def init(user_name) do
-    {:ok, %{user_name: user_name, topics: MapSet.new(), sockets: []}}
+    %{topics: topics} = read_filesystem_state(user_name)
+    {:ok, %{user_name: user_name, topics: topics, sockets: []}}
   end
 
   @impl true
   def handle_call({:subscribe, topic}, _from, state) do
+    add_topic_filesystem_state(state.user_name, topic)
     new_topics = state.topics |> MapSet.put(topic)
     {:reply, :ok, state |> Map.put(:topics, new_topics)}
   end
@@ -30,6 +32,7 @@ defmodule Queue do
 
   @impl true
   def handle_call({:unsubscribe, topic}, _from, state) do
+    remove_topic_filesystem_state(state.user_name, topic)
     new_topics = state.topics |> MapSet.delete(topic)
     {:reply, :ok, state |> Map.put(:topics, new_topics)}
   end
@@ -61,6 +64,43 @@ defmodule Queue do
       false ->
         {:noreply, state}
     end
+  end
+
+  defp read_filesystem_state(user_name) do
+    file_name = "#{get_name(user_name)}.bin"
+
+    %{topics: topics, messages: messages} =
+      case File.read(file_name) do
+        {:ok, bytes} ->
+          bytes |> :erlang.binary_to_term()
+
+        {:error, :enoent} ->
+          empty_state = %{topics: MapSet.new(), messages: []}
+          write_filesystem_state(user_name, empty_state)
+          empty_state
+      end
+
+    %{topics: topics, messages: messages}
+  end
+
+  defp write_filesystem_state(user_name, %{topics: topics, messages: messages}) do
+    file_name = "#{get_name(user_name)}.bin"
+
+    bytes = %{topics: topics, messages: messages} |> :erlang.term_to_binary()
+
+    :ok = File.write(file_name, bytes)
+  end
+
+  defp add_topic_filesystem_state(user_name, topic) do
+    %{topics: topics, messages: messages} = read_filesystem_state(user_name)
+    new_topics = topics |> MapSet.put(topic)
+    write_filesystem_state(user_name, %{topics: new_topics, messages: messages})
+  end
+
+  defp remove_topic_filesystem_state(user_name, topic) do
+    %{topics: topics, messages: messages} = read_filesystem_state(user_name)
+    new_topics = topics |> MapSet.delete(topic)
+    write_filesystem_state(user_name, %{topics: new_topics, messages: messages})
   end
 
   def subscribe(server, topic) do

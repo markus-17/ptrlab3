@@ -7,8 +7,15 @@ defmodule QueueSupervisor do
 
   @impl true
   def init(_init_arg) do
-    children = []
+    children = recover_child_spec()
 
     Supervisor.init(children, strategy: :one_for_one)
+  end
+
+  defp recover_child_spec() do
+    Path.wildcard("Elixir.Queue*.bin")
+    |> Enum.map(fn x -> Regex.run(~r/Elixir\.Queue(.*)\.bin/, x) |> Enum.at(1) end)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.map(&Queue.child_spec/1)
   end
 end
