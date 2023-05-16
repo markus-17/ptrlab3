@@ -1,0 +1,8 @@
+.git
+_build/
+.elixir_ls/
+deps/
+Elixir.DeadLetterChannel.json
+Elixir.Queue*.bin
+message_flow_diagrams/
+supervision_tree_diagrams/
