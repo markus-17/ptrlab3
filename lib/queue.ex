@@ -40,30 +40,58 @@ defmodule Queue do
   @impl true
   def handle_call({:add_socket, socket}, _from, state) do
     sockets = state.sockets ++ [socket]
+    %{messages: messages} = read_filesystem_state(state.user_name)
+    messages =
+      messages
+      |> Enum.filter(fn message ->
+        not message.acknowledged
+      end)
+
+    sockets =
+      messages
+      |> Enum.reduce(
+        sockets,
+        fn message, sockets ->
+          send_message_all_sockets(message, sockets)
+        end
+      )
+
     {:reply, :ok, state |> Map.put(:sockets, sockets)}
   end
 
   @impl true
   def handle_cast({:message, {topic, message}}, state) do
+    message = %{topic: topic, message: message, guid: UUID.uuid4(:hex), acknowledged: false}
+
     case state.topics |> Enum.member?(topic) do
       true ->
-        sockets =
-          state.sockets
-          |> Enum.reduce([], fn socket, acc ->
-            list =
-              case :gen_tcp.send(socket, "\r\n#{message}") do
-                :ok -> [socket]
-                {:error, _} -> []
-              end
+        add_message(state.user_name, message)
 
-            acc ++ list
-          end)
+        sockets =
+          message
+          |> send_message_all_sockets(state.sockets)
 
         {:noreply, state |> Map.put(:sockets, sockets)}
 
       false ->
         {:noreply, state}
     end
+  end
+
+  defp send_message_all_sockets(%{topic: topic, message: message, guid: guid}, sockets) do
+    sockets
+    |> Enum.reduce([], fn socket, acc ->
+      list =
+        case :gen_tcp.send(
+               socket,
+               "\r\nTopic: #{topic} Message: #{message} GUID: #{guid}"
+             ) do
+          :ok -> [socket]
+          {:error, _} -> []
+        end
+
+      acc ++ list
+    end)
   end
 
   defp read_filesystem_state(user_name) do
@@ -101,6 +129,12 @@ defmodule Queue do
     %{topics: topics, messages: messages} = read_filesystem_state(user_name)
     new_topics = topics |> MapSet.delete(topic)
     write_filesystem_state(user_name, %{topics: new_topics, messages: messages})
+  end
+
+  defp add_message(user_name, message) do
+    %{topics: topics, messages: messages} = read_filesystem_state(user_name)
+    messages = messages ++ [message]
+    write_filesystem_state(user_name, %{topics: topics, messages: messages})
   end
 
   def subscribe(server, topic) do
