@@ -41,22 +41,27 @@ defmodule Queue do
   def handle_call({:add_socket, socket}, _from, state) do
     sockets = state.sockets ++ [socket]
     %{messages: messages} = read_filesystem_state(state.user_name)
+
     messages =
       messages
       |> Enum.filter(fn message ->
         not message.acknowledged
       end)
 
-    sockets =
-      messages
-      |> Enum.reduce(
-        sockets,
-        fn message, sockets ->
-          send_message_all_sockets(message, sockets)
-        end
-      )
+    messages
+    |> Enum.map(
+      fn message ->
+        send_message_all_sockets(message, [socket])
+      end
+    )
 
     {:reply, :ok, state |> Map.put(:sockets, sockets)}
+  end
+
+  @impl true
+  def handle_call({:acknowledge, guid}, _from, state) do
+    acknowledge_message_filesystem_state(state.user_name, guid)
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -137,6 +142,18 @@ defmodule Queue do
     write_filesystem_state(user_name, %{topics: topics, messages: messages})
   end
 
+  defp acknowledge_message_filesystem_state(user_name, guid) do
+    %{topics: topics, messages: messages} = read_filesystem_state(user_name)
+
+    messages =
+      messages
+      |> Enum.filter(fn message ->
+        message.guid != guid
+      end)
+
+    write_filesystem_state(user_name, %{topics: topics, messages: messages})
+  end
+
   def subscribe(server, topic) do
     :ok = GenServer.call(server, {:subscribe, topic})
   end
@@ -151,6 +168,10 @@ defmodule Queue do
 
   def add_socket(server, socket) do
     :ok = GenServer.call(server, {:add_socket, socket})
+  end
+
+  def acknowledge_message(server, guid) do
+    :ok = GenServer.call(server, {:acknowledge, guid})
   end
 
   def send_message(server, topic, message) do

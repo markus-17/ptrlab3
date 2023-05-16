@@ -25,6 +25,7 @@ defmodule ConsumerConnectionHandler do
       ["subscribe", topic] -> handle_subscribe_command(socket, state, topic)
       ["get-topics"] -> handle_get_topics_command(socket, state)
       ["unsubscribe", topic] -> handle_unsubscribe_command(socket, state, topic)
+      ["acknowledge", guid] -> handle_acknowledge_command(socket, state, guid)
       _ -> handle_unknown_command(socket, state)
     end
   end
@@ -54,6 +55,7 @@ defmodule ConsumerConnectionHandler do
       {:error, {:already_started, _pid}} ->
         Logger.info("Queue for user #{user_name} already exists, it is going to be reused")
     end
+
     Queue.get_name(user_name) |> Queue.add_socket(socket)
   end
 
@@ -94,6 +96,19 @@ defmodule ConsumerConnectionHandler do
       user_name ->
         Queue.get_name(user_name) |> Queue.unsubscribe(topic)
         :gen_tcp.send(socket, "\r\nUnsubscribed from topic #{topic}")
+    end
+
+    state
+  end
+
+  defp handle_acknowledge_command(socket, state, guid) do
+    case state.current_user do
+      nil ->
+        :gen_tcp.send(socket, "\r\nYou have to act as a user before acknowledging messages")
+
+      user_name ->
+        Queue.get_name(user_name) |> Queue.acknowledge_message(guid)
+        :gen_tcp.send(socket, "\r\nAcknowledged message #{guid}")
     end
 
     state
